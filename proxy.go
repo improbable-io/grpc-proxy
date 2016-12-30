@@ -101,7 +101,10 @@ func (s *Proxy) Serve(lis net.Listener) error {
 			c.Close()
 			return nil
 		}
-		st, err := transport.NewServerTransport("http2", c, s.opts.maxConcurrentStreams, authInfo)
+		st, err := transport.NewServerTransport("http2", c, &transport.ServerConfig{
+			MaxStreams: s.opts.maxConcurrentStreams,
+			AuthInfo: authInfo,
+		})
 		if err != nil {
 			s.mu.Unlock()
 			c.Close()
@@ -118,6 +121,8 @@ func (s *Proxy) Serve(lis net.Listener) error {
 				s.handleStream(st, stream)
 				wg.Done()
 			}()
+		}, func(ctx context.Context, method string) context.Context {
+			return ctx
 		})
 		wg.Wait()
 		s.mu.Lock()
@@ -207,7 +212,7 @@ func backendTransportStream(director StreamDirector, ctx context.Context) (trans
 		}
 	}
 	// TODO(michal): ClientConn.GetTransport() IS NOT IN UPSTREAM GRPC!
-  // To make this work, copy patch/get_transport.go to google.golang.org/grpc/
+	// To make this work, copy patch/get_transport.go to google.golang.org/grpc/
 	backendTrans, _, err := grpcConn.GetTransport(ctx)
 	frontendStream, _ := transport.StreamFromContext(ctx)
 	callHdr := &transport.CallHdr{
